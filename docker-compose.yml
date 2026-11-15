@@ -7,7 +7,7 @@
 #   kafka-ui   - web UI to inspect topics/messages
 #   pgadmin    - web UI to inspect the databases
 #
-# Usage (from the deploy/ folder):
+# Usage (from the root of this repo):
 #   docker compose up -d
 #   docker compose down          # stop, keep data
 #   docker compose down -v       # stop and wipe all data (re-runs init scripts)
@@ -26,12 +26,14 @@ services:
       # default maintenance db; per-service dbs are created by init scripts
       POSTGRES_DB: postgres
     ports:
-      - "5432:5432"
+      # Host port is configurable when 5432 is taken (e.g. a local PostgreSQL install).
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # init scripts run only on a fresh volume, in filename order.
-      # ../database maps 1:1 so that \i /docker-entrypoint-initdb.d/<svc>/schema.sql resolves.
-      - ../database:/docker-entrypoint-initdb.d:ro
+      # This repo maps 1:1 so that \i /docker-entrypoint-initdb.d/<svc>/schema.sql resolves.
+      # Only the top-level *.sql files run as init scripts; other files are ignored.
+      - ./:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s

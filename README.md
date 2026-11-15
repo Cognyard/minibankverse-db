@@ -55,7 +55,7 @@ Redis dan Kafka dipakai bersama (bukan per-service):
 
 ## Cara menjalankan
 
-Dari folder `deploy/`:
+Dari root repo ini:
 
 ```bash
 cp .env.example .env         # sesuaikan kredensial bila perlu
@@ -66,7 +66,7 @@ Service & port:
 
 | Service   | URL / Port                        | Kredensial default |
 |-----------|-----------------------------------|--------------------|
-| PostgreSQL| `localhost:5432`                  | `postgres` / `postgres` |
+| PostgreSQL| `localhost:5432` (`POSTGRES_PORT`) | `postgres` / `postgres` |
 | Redis     | `localhost:6379`                  | — |
 | Kafka     | `localhost:9092` (dari host)      | — |
 | Kafka UI  | http://localhost:8085             | — |

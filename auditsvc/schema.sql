@@ -16,6 +16,8 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TABLE IF NOT EXISTS audit_logs (
     id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     trace_id      VARCHAR(100),                            -- correlates with Metadata.trace_id
+    service       VARCHAR(100),                            -- emitting service, e.g. minibankverse-authsvc
+    method        VARCHAR(255),                            -- full gRPC method name
     module        VARCHAR(50)  NOT NULL,                   -- from audit_trail option, e.g. AUTH
     activity      VARCHAR(100) NOT NULL,                   -- from audit_trail option, e.g. LOGIN
     actor_id      VARCHAR(100),                            -- user id performing the action
@@ -28,10 +30,16 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     response_body JSONB,                                   -- captured response payload
     status        VARCHAR(20)  NOT NULL DEFAULT 'SUCCESS', -- SUCCESS, FAILED
     error_message TEXT,                                    -- populated on failure
-    created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    occurred_at   TIMESTAMPTZ,                             -- when the action happened (set by the emitting service)
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),   -- when auditsvc stored the row
 
     CONSTRAINT chk_audit_status CHECK (status IN ('SUCCESS','FAILED'))
 );
+
+-- Databases created before service/method/occurred_at existed.
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS service     VARCHAR(100);
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS method      VARCHAR(255);
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_audit_module_activity ON audit_logs (module, activity);
 CREATE INDEX IF NOT EXISTS idx_audit_actor_id        ON audit_logs (actor_id);

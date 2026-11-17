@@ -20,17 +20,23 @@ CREATE TABLE IF NOT EXISTS accounts (
     -- money as NUMERIC to avoid float rounding errors; minor unit handled in app
     balance       NUMERIC(20,2) NOT NULL DEFAULT 0,
     currency      CHAR(3)      NOT NULL DEFAULT 'IDR',
-    status        VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',  -- ACTIVE, FROZEN, CLOSED
+    -- PENDING (giro waiting for approval), ACTIVE, FROZEN, CLOSED (final), REJECTED (final)
+    status        VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
 
     CONSTRAINT uq_accounts_account_no UNIQUE (account_no),
     CONSTRAINT chk_accounts_type      CHECK (account_type IN ('SAVINGS','CHECKING','GIRO')),
-    CONSTRAINT chk_accounts_status    CHECK (status IN ('ACTIVE','FROZEN','CLOSED')),
+    CONSTRAINT chk_accounts_status    CHECK (status IN ('PENDING','ACTIVE','FROZEN','CLOSED','REJECTED')),
     CONSTRAINT chk_accounts_balance   CHECK (balance >= 0)
 );
 
 CREATE INDEX IF NOT EXISTS idx_accounts_customer_id ON accounts (customer_id);
 CREATE INDEX IF NOT EXISTS idx_accounts_status      ON accounts (status);
+
+-- Databases created before PENDING and REJECTED existed. Safe to run again.
+ALTER TABLE accounts DROP CONSTRAINT IF EXISTS chk_accounts_status;
+ALTER TABLE accounts ADD CONSTRAINT chk_accounts_status
+    CHECK (status IN ('PENDING','ACTIVE','FROZEN','CLOSED','REJECTED'));
 
 COMMIT;

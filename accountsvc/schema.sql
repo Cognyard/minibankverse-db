@@ -39,4 +39,26 @@ ALTER TABLE accounts DROP CONSTRAINT IF EXISTS chk_accounts_status;
 ALTER TABLE accounts ADD CONSTRAINT chk_accounts_status
     CHECK (status IN ('PENDING','ACTIVE','FROZEN','CLOSED','REJECTED'));
 
+-- -------------------------------------------------------------
+-- account_transactions
+-- One row per transaction id of transactionsvc that reached accountsvc. The primary key makes
+-- ApplyTransaction idempotent: the balance update and this insert share one DB tx.
+--   APPLIED: the balances changed; the balances right after it are kept for replays.
+--   VOIDED:  ResolveTransaction found nothing applied and blocked the id for good.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS account_transactions (
+    transaction_id       UUID          PRIMARY KEY,
+    status               VARCHAR(20)   NOT NULL,
+    kind                 VARCHAR(20),               -- DEPOSIT, WITHDRAWAL, TRANSFER; null when VOIDED
+    debit_account_no     VARCHAR(32),
+    credit_account_no    VARCHAR(32),
+    amount               NUMERIC(20,2),
+    currency             CHAR(3),
+    debit_balance_after  NUMERIC(20,2),
+    credit_balance_after NUMERIC(20,2),
+    created_at           TIMESTAMPTZ   NOT NULL DEFAULT now(),
+    CONSTRAINT chk_account_transactions_status CHECK (status IN ('APPLIED','VOIDED')),
+    CONSTRAINT chk_account_transactions_kind   CHECK (kind IS NULL OR kind IN ('DEPOSIT','WITHDRAWAL','TRANSFER'))
+);
+
 COMMIT;

@@ -40,6 +40,10 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS service     VARCHAR(100);
 ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS method      VARCHAR(255);
 ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ;
+-- event_id of a Kafka event (for example transaction.v1.TransactionEvent). Kafka delivers at least
+-- once; the unique index keeps one row per event. NULL for records sent through Ingest.
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS event_id    UUID;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_audit_event_id ON audit_logs (event_id) WHERE event_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_audit_module_activity ON audit_logs (module, activity);
 CREATE INDEX IF NOT EXISTS idx_audit_actor_id        ON audit_logs (actor_id);

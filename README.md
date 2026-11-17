@@ -19,7 +19,7 @@ database/
 └── auditsvc/schema.sql       # audit_logs
 
 deploy/
-├── docker-compose.yml        # postgres, redis, kafka, kafka-ui, pgadmin
+├── docker-compose.yml        # postgres, redis, redpanda, kafka-ui, pgadmin
 └── .env.example              # copy ke .env
 ```
 
@@ -37,7 +37,8 @@ deploy/
 
 Redis dan Kafka dipakai bersama (bukan per-service):
 - **Redis** — cache + idempotency key store (session/token cache, idempotency di transactionsvc).
-- **Kafka** — event bus (`account-events`, `transaction-events`, `notification-events`).
+- **Kafka** (Redpanda) — event bus. Topic per domain: `minibankverse.<domain>.v1.events`, misalnya
+  `minibankverse.transaction.v1.events`.
 
 ## Catatan desain
 
@@ -48,8 +49,9 @@ Redis dan Kafka dipakai bersama (bukan per-service):
   di level aplikasi / event.
 - **Password** disimpan sebagai hash (bcrypt/argon2), tidak pernah plaintext.
 - **Refresh token** di tabel `sessions` sebaiknya disimpan sebagai hash juga.
-- **Outbox pattern** (`outbox_events`) + **idempotency_keys** di transactionsvc untuk
-  distributed transaction yang aman (roadmap Phase 6 & distributed transactions).
+- **Outbox pattern** (`outbox_events`, dibaca oleh `minibankverse-odk/outbox`) dan **idempotency key** per user
+  (`transactions.idempotency_key`) di transactionsvc. accountsvc mencatat setiap transaction id di
+  `account_transactions`, jadi perubahan saldo tidak pernah terjadi dua kali.
 - **auditsvc** menyimpan audit trail yang dihasilkan dari opsi `common.v1.audit_trail`
   pada proto (`"MODULE,ACTIVITY"`, misal `"AUTH,LOGIN"`).
 
@@ -68,7 +70,7 @@ Service & port:
 |-----------|-----------------------------------|--------------------|
 | PostgreSQL| `localhost:5432` (`POSTGRES_PORT`) | `postgres` / `postgres` |
 | Redis     | `localhost:6379`                  | — |
-| Kafka     | `localhost:9092` (dari host)      | — |
+| Kafka (Redpanda) | `localhost:19092` (dari host) | — |
 | Kafka UI  | http://localhost:8085             | — |
 | pgAdmin   | http://localhost:8086             | `admin@banking.local` / `admin` |
 
@@ -94,6 +96,6 @@ Dari container lain di network `banking-net`, host-nya `postgres` (bukan `localh
 postgres://postgres:postgres@postgres:5432/auth_db?sslmode=disable
 ```
 
-Kafka bootstrap:
-- dari host: `localhost:9092`
-- dari container lain: `kafka:9094`
+Kafka bootstrap (Redpanda):
+- dari host: `localhost:19092`
+- dari container lain: `banking-redpanda:9092`

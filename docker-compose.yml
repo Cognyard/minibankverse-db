@@ -3,8 +3,8 @@
 #
 #   postgres   - single instance, one database per service
 #   redis      - shared cache + idempotency store
-#   kafka      - event bus (KRaft mode, no Zookeeper)
-#   kafka-ui   - web UI to inspect topics/messages
+#   redpanda   - event bus (Kafka API, single node), same as the VPS
+#   kafka-ui   - web UI to inspect topics/messages (http://localhost:8085)
 #   pgadmin    - web UI to inspect the databases
 #
 # Usage (from the root of this repo):
@@ -59,36 +59,32 @@ services:
     networks:
       - banking-net
 
-  kafka:
-    image: bitnami/kafka:3.7
-    container_name: banking-kafka
+  # Same broker as the VPS (Redpanda speaks the Kafka protocol), with the same small settings.
+  #   from the host:        localhost:19092
+  #   from a container:     banking-redpanda:9092 (or redpanda:9092)
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v25.2.10
+    container_name: banking-redpanda
     restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --memory=256M
+      - --reserve-memory=0M
+      - --overprovisioned
+      - --default-log-level=warn
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://banking-redpanda:9092,external://localhost:19092
     ports:
-      - "9092:9092"   # external listener for host apps
-      - "9094:9094"   # internal listener for other containers
-    environment:
-      # ---- KRaft (no Zookeeper) ----
-      KAFKA_CFG_NODE_ID: "1"
-      KAFKA_CFG_PROCESS_ROLES: "broker,controller"
-      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
-      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
-      # ---- Listeners ----
-      KAFKA_CFG_LISTENERS: "PLAINTEXT://:9094,CONTROLLER://:9093,EXTERNAL://:9092"
-      KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9094,EXTERNAL://localhost:9092"
-      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT"
-      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
-      # ---- Dev-friendly defaults ----
-      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
-      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
-      KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: "1"
-      ALLOW_PLAINTEXT_LISTENER: "yes"
+      - "19092:19092"
     volumes:
-      - kafka_data:/bitnami/kafka
+      - redpanda_data:/var/lib/redpanda/data
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9094 --list || exit 1"]
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
       interval: 15s
-      timeout: 10s
+      timeout: 5s
       retries: 10
     networks:
       - banking-net
@@ -98,12 +94,12 @@ services:
     container_name: banking-kafka-ui
     restart: unless-stopped
     depends_on:
-      - kafka
+      - redpanda
     ports:
       - "8085:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: banking
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9094"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "banking-redpanda:9092"
       DYNAMIC_CONFIG_ENABLED: "true"
     networks:
       - banking-net
@@ -128,7 +124,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  kafka_data:
+  redpanda_data:
   pgadmin_data:
 
 networks:
